@@ -10,7 +10,7 @@ const CACHE = join(homedir(), '.nhx');
 export async function executePackage(
   pkgSpec: string,
   args: string[] = [],
-  opts: { runPostinstall?: boolean } = {},
+  opts: { runPostinstall?: boolean; binName?: string } = {},
 ): Promise<number> {
   // Normalize bare package names: "cowsay" -> "cowsay@*"
   // Leave alone: versioned ("pkg@1.0"), scoped ("@scope/pkg"), URLs, git specs, file paths
@@ -28,7 +28,7 @@ export async function executePackage(
     await install(dir, normalized, opts.runPostinstall || false);
   }
 
-  const bin = await findBin(dir, pkgSpec);
+  const bin = await findBin(dir, pkgSpec, opts.binName);
   if (!bin) throw new Error(`No executable found for ${pkgSpec}`);
   return run(bin, args);
 }
@@ -53,7 +53,7 @@ async function install(cwd: string, pkg: string, postinstall: boolean) {
   throw new Error(`npm install failed for ${pkg}`);
 }
 
-async function findBin(dir: string, spec: string): Promise<string | null> {
+async function findBin(dir: string, spec: string, binName?: string): Promise<string | null> {
   const nm = join(dir, 'node_modules');
 
   // Extract package name from spec (handles @scope/pkg@version)
@@ -82,6 +82,9 @@ async function findBin(dir: string, spec: string): Promise<string | null> {
   );
   if (!p.bin) return null;
   if (typeof p.bin === 'string') return join(pkgDir, p.bin);
+
+  // If a specific bin name was requested, use it
+  if (binName && p.bin[binName]) return join(pkgDir, p.bin[binName]);
 
   // Try matching bin name to package name (handles @scope/pkg -> pkg)
   const name = (p.name || pkgName).split('/').pop();

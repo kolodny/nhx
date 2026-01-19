@@ -135,8 +135,8 @@ async function main() {
 
     // NPM package
     const pkg = withDeps.length ? withDeps[0] : target;
-    const cmdArgs = withDeps.length ? [target, ...args] : args;
-    await executePackage(pkg, cmdArgs, { runPostinstall });
+    const binName = withDeps.length ? target : undefined;
+    await executePackage(pkg, args, { runPostinstall, binName });
   } catch (e: any) {
     console.error(chalk.red(`Failed: ${e.message}`));
     process.exit(1);

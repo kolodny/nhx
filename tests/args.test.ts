@@ -54,4 +54,28 @@ describe('argument handling', () => {
     const args = JSON.parse(result.stdout.toString().trim());
     assert.deepEqual(args, ['-h']);
   });
+
+  test('handles different bins', (t) => {
+    const { spawn } = setup(t);
+    const result = spawn('--with', 'get-port-cli', '{3000..3010}');
+
+    assert.equal(result.status, 0);
+    assert(result.stdout.toString().trim().match(/300\d/));
+  });
+
+  test('handles named different bins', (t) => {
+    const { spawn } = setup(t);
+    const result = spawn('--with', 'get-port-cli', 'get-port', '{3000..3010}');
+
+    assert.equal(result.status, 0);
+    assert(result.stdout.toString().trim().match(/300\d/));
+  });
+
+  test('handles different bins for help', (t) => {
+    const { spawn } = setup(t);
+    const result = spawn('--with', 'get-port-cli', 'get-port', '--help');
+
+    assert.equal(result.status, 0);
+    assert(result.stdout.toString().includes('Get an available port'));
+  });
 });
