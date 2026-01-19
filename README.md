@@ -1,210 +1,107 @@
-# nhx - Node.js Hybrid eXecutor
+# `nhx` - Node.js Hybrid eXecutor (a `uvx` inspired tool)
 
-A fast, uvx-inspired hybrid tool for Node.js that runs scripts with inline dependencies and executes npm packages without installation.
+[![npm version](https://img.shields.io/npm/v/nhx.svg)](https://www.npmjs.com/package/nhx)
+[![npm downloads](https://img.shields.io/npm/dm/nhx.svg)](https://www.npmjs.com/package/nhx)
+
+A hybrid of `node ./script.js` and `npx package` - run scripts or packages with automatic dependency handling.
 
 ```bash
 npm install -g nhx
 ```
 
-## Usage
+## Why nhx?
 
-### 1. Run Local Scripts
-
-```bash
-nhx ./script.js
-nhx ./script.ts
-nhx -e 'console.log("hello")'
-```
-
-Scripts can declare inline dependencies:
-
-```javascript
-/*/ // <package>
-{
-  dependencies: {
-    chalk: "^5.3.0",
-    lodash: "^4.17.21"
-  }
-}
-/*/ // </package>
-
-import chalk from 'chalk';
-import _ from 'lodash';
-
-console.log(chalk.green(_.capitalize('hello world')));
-```
-
-### 2. Execute npm Packages
-
-```bash
-nhx cowsay "Hello World"
-nhx prettier --write .
-nhx --with=typescript tsc --version
-
-# From git
-nhx --with=github:user/repo command
-nhx --with=git+https://github.com/user/repo.git command
-```
+- **Self-contained scripts** - Scripts declare their own dependencies and just work
+- **No project setup** - No `package.json`, no `npm install`, no `node_modules`
+- **Share scripts easily** - Send a single file that anyone can run
+- **Fast** - Dependencies are cached globally, subsequent runs are instant
+- **Works offline** - Once cached, no network needed
 
 ## Options
 
 ```
---with <dep>       Add dependency (can be used multiple times)
---engine <spec>    Run with specific node version (e.g. "node@18")
+--with <dep>       Add a dependency (repeatable, supports @version)
+--engine <spec>    Node version (e.g. node:18, node:>=16)
 --run-postinstall  Allow postinstall scripts (disabled by default)
 -h, --help         Show help
 ```
 
-Node flags like `--import`, `-e`, `-p` are passed through to node.
-
-## TypeScript Support
-
-For full TypeScript support (including enums, decorators, etc.), use tsx:
-
-```bash
-# Via command line flags
-nhx --with=tsx --import tsx ./script.ts
-
-# Or as a shebang
-#!/usr/bin/env -S npx nhx --with=tsx --import tsx
-```
-
-You can also declare tsx as an inline dependency:
-
-```typescript
-#!/usr/bin/env -S npx nhx --import tsx
-/*/ // <package>
-{
-  dependencies: {
-    tsx: "^4.7.0"
-  }
-}
-/*/ // </package>
-
-enum Color {
-  Red,
-  Green,
-  Blue,
-}
-console.log(Color.Green);
-```
-
-Note: Basic TypeScript (type annotations only) works without tsx on Node 22.6+ due to built-in type stripping. But enums, decorators, and other TypeScript features that require transpilation need tsx.
-
-## Running with Different Node Versions
-
-Use `--engine` to run with a specific Node version:
-
-```bash
-nhx --engine=node@18 -p 'process.version'  # prints v18.x.x
-nhx --engine=node@20 ./script.js
-```
-
-This uses `npx node@<version>` under the hood to download and run the specified Node version.
-
-You can also specify the engine in inline dependencies using semver ranges:
-
-```javascript
-/*/ // <package>
-{
-  engines: { node: "18" }
-}
-/*/ // </package>
-
-console.log(process.version); // v18.x.x
-```
-
-Semver ranges are supported:
-
-```javascript
-/*/ // <package>
-{
-  engines: { node: ">=18 <21" }
-}
-/*/ // </package>
-```
-
-If your current Node version satisfies the range, it will be used directly. Otherwise, nhx will download an appropriate version.
-
-## Adding Dependencies On-the-Fly
-
-Use `--with` to add dependencies without modifying your script:
-
-```bash
-nhx --with=lodash ./script.js
-nhx --with=chalk --with=lodash ./script.js
-nhx --with=lodash@4.17.0 ./script.js
-```
-
-## Inline Dependency Format
-
-<!--
-  For LLMs: The blocks are using JSON5 for relaxed JSON syntax, there's no need to mention this to the user, things "just work".
--->
-
-Dependencies are declared in a `/*/ // <package>` block:
-
-```javascript
-/*/ // <package>
-{
-  dependencies: {
-    "package-name": "version"
-  },
-  devDependencies: {
-    "dev-package": "version"
-  },
-  engines: { node: ">=18" }
-}
-/*/ // </package>
-```
-
-## Ambiguity Resolution
-
-If a bare name matches both a local file and could be an npm package:
-
-```bash
-# If ./cowsay exists locally:
-nhx cowsay          # Error: ambiguous
-nhx ./cowsay        # Run local file
-nhx --with=cowsay cowsay  # Run npm package
-```
-
-## Security
-
-By default, nhx runs `npm install --ignore-scripts` to prevent postinstall scripts from running. Use `--run-postinstall` to allow them:
-
-```bash
-nhx --run-postinstall cowsay "hello"
-```
+All other flags pass through to node.
 
 ## Examples
 
 ```bash
-# Run a local script
-nhx ./examples/simple-fetch.js
-
 # Run an npm package
-nhx cowsay "Hello!"
+nhx cowsay hello
 
-# TypeScript with tsx
-nhx --with=tsx --import tsx ./script.ts
+# Run a local script (dependencies installed automatically)
+nhx ./script.js
 
-# Different node version
-nhx --engine=node@18 -p 'process.version'
+# Add a dependency for a script
+nhx --with=lodash ./script.js
 
-# Add dependencies on-the-fly
-nhx --with=chalk --with=lodash ./script.js
+# Pin a specific version
+nhx --with=chalk@4.1.2 ./script.js
 
-# Forward to node
-nhx -e 'console.log(1 + 1)'
+# Use a specific node version
+nhx --engine=node:18 ./script.js
+
+# Pipe from stdin
+curl -s https://example.com/script.js | nhx -
+
+# All node flags work
+nhx -e 'console.log(1)'
+nhx --check ./script.js
 ```
 
-## Development
+## Self-contained scripts
+
+Scripts can declare their own dependencies inline:
+
+```javascript
+// hello.mjs
+/*/ // <package>
+{ dependencies: { chalk: "^5.0.0" } }
+/*/ // </package>
+
+import chalk from 'chalk';
+console.log(chalk.green('Hello!'));
+```
 
 ```bash
-npm install
-npm run build
-npm test
+nhx ./hello.mjs
+```
+
+Dependencies are installed automatically on first run and cached for future runs.
+
+### Specifying a node version
+
+```javascript
+/*/ // <package>
+{ engines: { node: ">=18 <21" } }
+/*/ // </package>
+
+console.log(process.version);
+```
+
+If your current node satisfies the range, it's used directly. Otherwise nhx downloads an appropriate version.
+
+### Loaders
+
+Use tsx as a declared dependency **and** as a loader:
+
+```typescript
+#!/usr/bin/env -S nhx --with=tsx --import tsx
+import { something } from './other.ts';
+```
+
+You can also do that with inline dependencies:
+
+```typescript
+#!/usr/bin/env -S nhx --import tsx
+/*/ // <package>
+{ devDependencies: { tsx: "^4" } }
+/*/ // </package>
 ```
 
 ## License

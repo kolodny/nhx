@@ -29,8 +29,11 @@ function parseContent(content: string): ParsedDeps {
 
 export const parseInlineDependencies = async (path: string) =>
   parseContent(await fs.readFile(path, 'utf-8'));
-export const getNodeVersionKey = () =>
-  `node-${process.versions.node.split('.').slice(0, 2).join('.')}`;
+export const getNodeVersionKey = (targetVersion?: string) => {
+  const ver = targetVersion || process.versions.node;
+  const parts = ver.replace(/^v?/, '').split('.');
+  return `node-${parts.slice(0, 2).join('.')}`;
+};
 export const createPackageJson = (d: ParsedDeps, name = 'script') => ({
   name,
   version: '1.0.0',

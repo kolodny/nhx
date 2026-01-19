@@ -1,7 +1,7 @@
 {
   "name": "nhx",
-  "version": "0.0.0-alpha.0",
-  "description": "A UVx-like tool for the Node.js ecosystem - simple code execution",
+  "version": "0.0.0",
+  "description": "Node.js Hybrid eXecutor (a `uvx` inspired tool)",
   "type": "commonjs",
   "bin": "dist/cli.js",
   "files": [
@@ -11,6 +11,7 @@
     "prepublishOnly": "npm run build && npm test",
     "build": "rm -rf dist && tsc -b",
     "postbuild": "chmod +x dist/cli.js",
+    "pretest": "npm run build",
     "test": "node --import tsx --test",
     "test:watch": "npm test -- --watch"
   },
@@ -28,11 +29,9 @@
   "dependencies": {
     "chalk": "^5.3.0",
     "json5": "^2.2.3",
-    "minimist": "^1.2.8",
     "semver": "^7.7.3"
   },
   "devDependencies": {
-    "@types/minimist": "^1.2.5",
     "@types/node": "^20.11.0",
     "@types/semver": "^7.7.1",
     "tsx": "^4.21.0",

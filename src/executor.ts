@@ -1,85 +1,81 @@
-import { promises as fs } from 'fs';
+import { promises as fs, existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { spawn } from 'child_process';
+import { createHash } from 'crypto';
 import { getNodeVersionKey } from './inline-deps.js';
 
-const CACHE = join(homedir(), '.nhx', 'store');
+const CACHE = join(homedir(), '.nhx');
 
 export async function executePackage(
   pkgSpec: string,
   args: string[] = [],
   opts: { runPostinstall?: boolean } = {},
 ): Promise<number> {
-  const key = `pkg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const dir = join(CACHE, getNodeVersionKey(), key);
-  await fs.mkdir(dir, { recursive: true });
+  // Normalize bare package names: "cowsay" -> "cowsay@*"
+  // Leave alone: versioned ("pkg@1.0"), scoped ("@scope/pkg"), URLs, git specs, file paths
+  const isBare = /^[a-z][\w.-]*$/i.test(pkgSpec);
+  const normalized = isBare ? `${pkgSpec}@*` : pkgSpec;
 
-  try {
-    const pkgJson = JSON.stringify({
-      name: 'nhx-exec',
-      version: '1.0.0',
-      private: true,
-    });
-    await fs.writeFile(join(dir, 'package.json'), pkgJson);
-    await install(dir, pkgSpec, opts.runPostinstall || false);
+  const hash = createHash('sha256').update(normalized).digest('hex').slice(0, 12);
+  const dir = join(CACHE, getNodeVersionKey(), hash);
+  const modules = join(dir, 'node_modules');
 
-    const bin = await findBin(dir, pkgSpec);
-    if (!bin) throw new Error(`No executable found for ${pkgSpec}`);
-
-    const code = await run(bin, args);
-    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
-    return code;
-  } catch (e) {
-    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
-    throw e;
+  if (!existsSync(modules)) {
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(join(dir, 'package.json'), '{"name":"x","private":true}');
+    await fs.writeFile(join(dir, '_meta.json'), JSON.stringify({ pkg: normalized }, null, 2));
+    await install(dir, normalized, opts.runPostinstall || false);
   }
+
+  const bin = await findBin(dir, pkgSpec);
+  if (!bin) throw new Error(`No executable found for ${pkgSpec}`);
+  return run(bin, args);
 }
 
-function install(cwd: string, pkg: string, postinstall: boolean) {
-  const args = ['install', pkg, '--no-save', '--prefer-offline'];
-  if (!postinstall) args.push('--ignore-scripts');
+async function install(cwd: string, pkg: string, postinstall: boolean) {
+  const base = ['install', pkg, '--no-save'];
+  if (!postinstall) base.push('--ignore-scripts');
 
-  return new Promise<void>((res, rej) => {
-    const child = spawn('npm', args, { cwd, stdio: 'ignore' });
-    child.on('close', (c) =>
-      c === 0 ? res() : rej(new Error(`npm install failed for ${pkg}`)),
-    );
-    child.on('error', rej);
-  });
+  const run = (args: string[], silent = false) =>
+    new Promise<boolean>((res) => {
+      const child = spawn('npm', [...base, ...args], {
+        cwd,
+        stdio: silent ? 'ignore' : ['inherit', 2, 2],
+      });
+      child.on('close', (c) => res(c === 0));
+      child.on('error', () => res(false));
+    });
+
+  // Try offline first (silent), fall back to network
+  if (await run(['--offline'], true)) return;
+  if (await run(['--prefer-offline'])) return;
+  throw new Error(`npm install failed for ${pkg}`);
 }
 
 async function findBin(dir: string, spec: string): Promise<string | null> {
   const nm = join(dir, 'node_modules');
-  const isGit = /^(git\+|github:|gitlab:)/.test(spec);
 
-  let pkgDir = '';
-  let pkgName = '';
+  // Extract package name from spec (handles @scope/pkg@version)
+  const match = spec.match(/^(@?[^@]+)/);
+  const pkgName = match?.[1] || spec;
+  let pkgDir = join(nm, pkgName);
 
-  if (isGit) {
+  // If not found, scan node_modules for a package with a bin (handles git/URL specs)
+  if (!existsSync(pkgDir)) {
     const entries = await fs.readdir(nm).catch(() => []);
     for (const e of entries) {
-      const skip = e.startsWith('.') || e === '.bin';
-      if (skip) continue;
-
+      if (e.startsWith('.') || e === '.bin') continue;
       const d = join(nm, e);
-      const isDir = (await fs.stat(d)).isDirectory();
-      if (!isDir) continue;
-
-      const p = JSON.parse(
-        await fs.readFile(join(d, 'package.json'), 'utf-8').catch(() => '{}'),
-      );
+      if (!(await fs.stat(d)).isDirectory()) continue;
+      const p = JSON.parse(await fs.readFile(join(d, 'package.json'), 'utf-8').catch(() => '{}'));
       if (p.bin) {
         pkgDir = d;
-        pkgName = e;
         break;
       }
     }
-    if (!pkgDir!) return null;
-  } else {
-    pkgName = spec.split('@').find((p) => p && !/^\d/.test(p)) || spec;
-    pkgDir = join(nm, pkgName);
   }
+  if (!existsSync(pkgDir)) return null;
 
   const p = JSON.parse(
     await fs.readFile(join(pkgDir, 'package.json'), 'utf-8').catch(() => '{}'),
@@ -87,7 +83,8 @@ async function findBin(dir: string, spec: string): Promise<string | null> {
   if (!p.bin) return null;
   if (typeof p.bin === 'string') return join(pkgDir, p.bin);
 
-  const name = pkgName.split('/').pop();
+  // Try matching bin name to package name (handles @scope/pkg -> pkg)
+  const name = (p.name || pkgName).split('/').pop();
   if (name && p.bin[name]) return join(pkgDir, p.bin[name]);
 
   const first = Object.values(p.bin)[0];

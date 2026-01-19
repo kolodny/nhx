@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { spawnSync } from 'node:child_process';
@@ -36,4 +37,18 @@ export const setup = (t: TestContext, pkg?: Pkg) => {
   if (pkg) writeJson('package.json', { name: hash, ...pkg });
 
   return { writeFile, writeJson, spawn, cwd };
+};
+
+export const startServer = (t: TestContext, files: Record<string, string>) => {
+  return new Promise<string>((resolve) => {
+    const server = http.createServer((req, res) => {
+      const file = files[req.url || '/'];
+      res.end(file ?? 'Not found');
+    });
+    server.listen(0, '127.0.0.1', () => {
+      const addr = server.address() as { port: number };
+      t.after(() => server.close());
+      resolve(`http://127.0.0.1:${addr.port}`);
+    });
+  });
 };

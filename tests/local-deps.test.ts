@@ -2,31 +2,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup } from './helpers';
+import { setup } from './_helpers';
 
 describe('local dependency resolution', () => {
-  test('--with=pkg (no version) uses local package if available', (t) => {
-    const { spawn, cwd } = setup(t);
-
-    // Create a fake local package
-    const nodeModules = path.join(cwd, 'node_modules', 'test-pkg');
-    fs.mkdirSync(nodeModules, { recursive: true });
-    fs.writeFileSync(
-      path.join(nodeModules, 'package.json'),
-      JSON.stringify({ name: 'test-pkg', version: '1.0.0' }),
-    );
-    fs.writeFileSync(
-      path.join(nodeModules, 'index.js'),
-      `module.exports = { version: '1.0.0' };`,
-    );
-
-    const result = spawn('--with=test-pkg', '-p', "require('test-pkg').version");
-
-    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-    // Should use local version 1.0.0
-    assert(result.stdout.toString().includes('1.0.0'));
-  });
-
   test('--with=pkg@latest always fetches latest from npm', (t) => {
     const { spawn, cwd } = setup(t);
 
