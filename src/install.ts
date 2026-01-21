@@ -1,18 +1,28 @@
 import { execSync, spawn } from 'child_process';
 
+const getRegistry = () => {
+  try {
+    return execSync('npm config get registry').toString().trim();
+  } catch {
+    return '';
+  }
+};
+
 export async function npmInstall(opts: {
   cwd: string;
   pkg?: string;
   postinstall?: boolean;
 }): Promise<void> {
   const { cwd, pkg, postinstall } = opts;
-  const registry = execSync('npm config get registry').toString().trim();
 
   const args = pkg ? ['install', pkg, '--no-save'] : ['install'];
   if (!postinstall) args.push('--ignore-scripts');
 
   const env = { ...process.env };
-  if (registry) env.NPM_CONFIG_REGISTRY = registry;
+  if (!env.NPM_CONFIG_REGISTRY) {
+    const registry = getRegistry();
+    if (registry) env.NPM_CONFIG_REGISTRY = registry;
+  }
 
   const run = (extraArgs: string[], silent = false) => {
     return new Promise<boolean>((res) => {
