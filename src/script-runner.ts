@@ -8,7 +8,8 @@ import {
   parseInlineDependencies,
   createPackageJson,
   getNodeVersionKey,
-} from './inline-deps.js';
+} from './inline-deps';
+import { npmInstall } from './install';
 
 const CACHE = join(homedir(), '.nhx');
 
@@ -93,7 +94,7 @@ export async function runScript(
     await fs.writeFile(join(dir, 'package.json'), JSON.stringify(pkg, null, 2));
     const meta = JSON.stringify(hashInput, null, 2);
     await fs.writeFile(join(dir, '_meta.json'), meta);
-    await install(dir);
+    await npmInstall({ cwd: dir });
   }
 
   const esmLoader = join(dir, '_loader.mjs');
@@ -109,28 +110,6 @@ export async function runScript(
     '--no-warnings',
   ];
   return exec(script, args, modules, [...loaderArgs, ...nodeArgs], engines);
-}
-
-async function install(cwd: string) {
-  const pkg = JSON.parse(await fs.readFile(join(cwd, 'package.json'), 'utf-8'));
-  const hasKeys = (obj: unknown) => Object.keys(obj || {}).length > 0;
-  const hasDeps = hasKeys(pkg.dependencies) || hasKeys(pkg.devDependencies);
-  if (!hasDeps) return;
-
-  const run = (args: string[], silent = false) =>
-    new Promise<boolean>((res) => {
-      const child = spawn('npm', ['install', ...args, '--ignore-scripts'], {
-        cwd,
-        stdio: silent ? ['inherit', 'ignore', 'ignore'] : ['inherit', 2, 2],
-      });
-      child.on('close', (c) => res(c === 0));
-      child.on('error', () => res(false));
-    });
-
-  // Try offline first (silent - instant if cached), fall back to network
-  if (await run(['--offline'], true)) return;
-  if (await run(['--prefer-offline'])) return;
-  throw new Error('npm install failed');
 }
 
 // Get latest version of a package from npm registry

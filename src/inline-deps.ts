@@ -12,8 +12,8 @@ const BASE = { dependencies: {}, devDependencies: {} };
 const EMPTY: ParsedDeps = { ...BASE, hasInlineDeps: false };
 
 function parseContent(content: string): ParsedDeps {
-  const shebang = content.startsWith('#!');
-  const lines = content.split('\n').slice(shebang ? 1 : 0);
+  const ignoreFirst = content.startsWith('#!') || content.startsWith('//');
+  const lines = content.split('\n').slice(ignoreFirst ? 1 : 0);
   const starts = lines.join('\n').trim().startsWith('/*/ // <package>');
   if (!starts) return EMPTY;
   const ends = lines.findIndex((l) => l.trim().startsWith('/*/ // </package>'));

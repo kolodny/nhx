@@ -3,7 +3,8 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { spawn } from 'child_process';
 import { createHash } from 'crypto';
-import { getNodeVersionKey } from './inline-deps.js';
+import { getNodeVersionKey } from './inline-deps';
+import { npmInstall } from './install';
 
 const CACHE = join(homedir(), '.nhx');
 
@@ -25,32 +26,12 @@ export async function executePackage(
     await fs.mkdir(dir, { recursive: true });
     await fs.writeFile(join(dir, 'package.json'), '{"name":"x","private":true}');
     await fs.writeFile(join(dir, '_meta.json'), JSON.stringify({ pkg: normalized }, null, 2));
-    await install(dir, normalized, opts.runPostinstall || false);
+    await npmInstall({ cwd: dir, pkg: normalized, postinstall: opts.runPostinstall });
   }
 
   const bin = await findBin(dir, pkgSpec, opts.binName);
   if (!bin) throw new Error(`No executable found for ${pkgSpec}`);
   return run(bin, args);
-}
-
-async function install(cwd: string, pkg: string, postinstall: boolean) {
-  const base = ['install', pkg, '--no-save'];
-  if (!postinstall) base.push('--ignore-scripts');
-
-  const run = (args: string[], silent = false) =>
-    new Promise<boolean>((res) => {
-      const child = spawn('npm', [...base, ...args], {
-        cwd,
-        stdio: silent ? 'ignore' : ['inherit', 2, 2],
-      });
-      child.on('close', (c) => res(c === 0));
-      child.on('error', () => res(false));
-    });
-
-  // Try offline first (silent), fall back to network
-  if (await run(['--offline'], true)) return;
-  if (await run(['--prefer-offline'])) return;
-  throw new Error(`npm install failed for ${pkg}`);
 }
 
 async function findBin(dir: string, spec: string, binName?: string): Promise<string | null> {

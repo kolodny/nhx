@@ -1,6 +1,6 @@
 {
   "name": "nhx",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Node.js Hybrid eXecutor (a `uvx` inspired tool)",
   "type": "commonjs",
   "bin": "dist/cli.js",
