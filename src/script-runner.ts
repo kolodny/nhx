@@ -20,8 +20,9 @@ import { pathToFileURL } from 'node:url';
 const modules = ${JSON.stringify(modules)};
 export async function resolve(spec, ctx, next) {
   if (/^[./#]|^node:/.test(spec)) return next(spec, ctx);
+  const orig = ctx.parentURL;
   try { return await next(spec, { ...ctx, parentURL: pathToFileURL(join(modules, '_')).href }); }
-  catch { return next(spec, ctx); }
+  catch { return next(spec, { ...ctx, parentURL: orig }); }
 }`;
 
 // CJS loader - patches require to check cache first

@@ -1,8 +1,11 @@
 import { execSync, spawn } from 'child_process';
+import { dirname, join } from 'path';
+
+const npmPath = join(dirname(process.execPath), 'npm');
 
 const getRegistry = () => {
   try {
-    return execSync('npm config get registry').toString().trim();
+    return execSync(`"${npmPath}" config get registry`).toString().trim();
   } catch {
     return '';
   }

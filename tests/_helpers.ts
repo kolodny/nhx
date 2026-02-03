@@ -4,7 +4,6 @@ import http from 'node:http';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { name } from '../package.json';
 
 type Pkg = Partial<{
   name: string;
@@ -21,6 +20,7 @@ export const inline = (pkg: Pkg) => `${pre}${JSON.stringify(pkg)}${post}`;
 export const setup = (t: TestContext, pkg?: Pkg) => {
   const hash = createHash('sha1').update(t.name).digest('hex').slice(0, 8);
   const dirname = import.meta?.dirname ?? __dirname;
+
   const cwd = path.join(dirname, `_test_${hash}`);
   fs.mkdirSync(cwd, { recursive: true });
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
@@ -32,7 +32,9 @@ export const setup = (t: TestContext, pkg?: Pkg) => {
     writeFile(file, JSON.stringify(json, null, 2));
   };
 
-  const spawn = (...a: string[]) => spawnSync('npx', [name, ...a], { cwd });
+  const execPath = process.execPath;
+  const cli = path.join(dirname, '../dist/cli.js');
+  const spawn = (...a: string[]) => spawnSync(execPath, [cli, ...a], { cwd });
 
   if (pkg) writeJson('package.json', { name: hash, ...pkg });
 

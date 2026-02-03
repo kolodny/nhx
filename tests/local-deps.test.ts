@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { setup } from './_helpers';
+import { setup, inline } from './_helpers';
 
 describe('local dependency resolution', () => {
   test('--with=pkg@latest always fetches latest from npm', (t) => {
@@ -29,7 +29,10 @@ describe('local dependency resolution', () => {
     assert.equal(result.status, 0, `stderr: ${result.stderr}`);
     const version = result.stdout.toString().trim();
     // Should NOT be 5.0.0 (the local fake version), should be actual latest (7.x)
-    assert(!version.includes('5.0.0'), `Expected latest semver, got ${version}`);
+    assert(
+      !version.includes('5.0.0'),
+      `Expected latest semver, got ${version}`,
+    );
     assert(version.startsWith('7.'), `Expected semver 7.x, got ${version}`);
   });
 
@@ -75,6 +78,49 @@ describe('local dependency resolution', () => {
     assert(
       version.startsWith('7.'),
       `Expected semver 7.x from npm, got ${version}`,
+    );
+  });
+
+  test('ESM loader falls back to local node_modules for packages not in inline deps', (t) => {
+    const { writeFile, spawn, cwd } = setup(t);
+
+    // Create a local-only package in node_modules (NOT in inline deps)
+    const localPkg = path.join(cwd, 'node_modules', 'local-only-pkg');
+    fs.mkdirSync(localPkg, { recursive: true });
+    fs.writeFileSync(
+      path.join(localPkg, 'package.json'),
+      JSON.stringify({
+        name: 'local-only-pkg',
+        version: '1.0.0',
+        type: 'module',
+      }),
+    );
+    fs.writeFileSync(
+      path.join(localPkg, 'index.js'),
+      'export const localValue = "from-local";',
+    );
+
+    // Create a script with inline deps (semver from npm) that also imports the local-only package
+    // The inline deps trigger the ESM loader; local-only-pkg must resolve via fallback
+    writeFile(
+      'test.mjs',
+      `${inline({ dependencies: { semver: '^7' } })}
+import semver from 'semver';
+import { localValue } from 'local-only-pkg';
+console.log('semver:', semver.valid('1.0.0'), 'local:', localValue);
+`,
+    );
+
+    const result = spawn('./test.mjs');
+    assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+    const output = result.stdout.toString();
+    assert(
+      output.includes('semver: 1.0.0'),
+      `Expected semver output, got: ${output}`,
+    );
+    assert(
+      output.includes('local: from-local'),
+      `Expected local package output, got: ${output}`,
     );
   });
 });

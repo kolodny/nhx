@@ -30,7 +30,7 @@ Examples:
 const isLocal = (t: string) => /^\.{0,2}\//.test(t);
 
 async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
+  const chunks: Uint8Array[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
 
   const content = Buffer.concat(chunks).toString('utf8');

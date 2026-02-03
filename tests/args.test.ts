@@ -57,7 +57,8 @@ describe('argument handling', () => {
 
   test('handles different bins', (t) => {
     const { spawn } = setup(t);
-    const result = spawn('--with', 'get-port-cli', '{3000..3010}');
+    const ports = Array.from({ length: 11 }, (_, i) => (3000 + i).toString());
+    const result = spawn('--with', 'get-port-cli', ...ports);
 
     assert.equal(result.status, 0);
     assert(result.stdout.toString().trim().match(/300\d/));
@@ -65,7 +66,8 @@ describe('argument handling', () => {
 
   test('handles named different bins', (t) => {
     const { spawn } = setup(t);
-    const result = spawn('--with', 'get-port-cli', 'get-port', '{3000..3010}');
+    const ports = Array.from({ length: 11 }, (_, i) => (3000 + i).toString());
+    const result = spawn('--with', 'get-port-cli', 'get-port', ...ports);
 
     assert.equal(result.status, 0);
     assert(result.stdout.toString().trim().match(/300\d/));
