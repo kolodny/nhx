@@ -27,10 +27,10 @@ export async function npmInstall(opts: {
     if (registry) env.NPM_CONFIG_REGISTRY = registry;
   }
 
-  const run = (extraArgs: string[], silent = false) => {
+  const run = (extra: string[], silent = false) => {
     return new Promise<boolean>((res) => {
       const stdio = silent ? ('ignore' as const) : ['inherit' as const, 2, 2];
-      const child = spawn('npm', [...args, ...extraArgs], { cwd, env, stdio });
+      const child = spawn(npmPath, [...args, ...extra], { cwd, env, stdio });
       child.on('close', (c) => res(c === 0));
       child.on('error', () => res(false));
     });
